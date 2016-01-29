@@ -1,0 +1,417 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+    <head>
+        <meta charset="UTF-8">
+        <title>mailPilot</title>
+        <script type="text/javascript"
+        src = "simpleGame.js"></script>
+        <link href='http://fonts.googleapis.com/css?family=Pacifico' rel='stylesheet' type='text/css'>
+        <script type="text/javascript">
+
+            //counters for storing health and current score 
+            var score = 0;
+            var health = 5;
+            
+            //stores high scores
+            var scores = [0, 0, 0];
+            
+            //game sprites and music
+            var scene;
+            var plane;
+            var island;
+            var mailIsland;
+            var clouds;
+            var ocean;
+            var bgMusic;
+
+            //game sounds
+            var PageMp3;
+            var LatchMp3;
+            var AirplaneOgg;
+
+            //constants for ocean speed and number of clouds on screen
+            var OCEAN_SPEED = 10;
+            var NUM_CLOUDS = 3;
+            
+            //booleans
+            //scoreChecked stops the player from gaining unlimited points after delivering mail to an island
+            //delivered makes sure the mail was delivered to the island (when the plane touches an island)
+            var scoreChecked = false;
+            var delivered = false;
+
+            /* Plane Constructor:
+             * Establishes a plane sprite used by the player by x and y coordinates (using the mouse)
+             * Has all the properties for a plane */
+            function Plane() {
+                tPlane = new Sprite(scene, "PlaneChan.png", 50, 50);
+                tPlane.setSpeed(0);
+                tPlane.setPosition();
+
+                tPlane.followMouse = function () {
+                    this.setPosition(scene.getMouseX(), scene.getMouseY());
+                }
+
+                return tPlane;
+            } // end plane constructor
+
+            /*Island Function:
+             * Establishes an island sprite, randomly appears on the game screen one at a time */
+            var x; //used in the Island exclusively for keeping the x-coordinate of the island
+            function Island() {
+                tIsland = new Sprite(scene, "IslandChan.png", 100, 100);
+
+                tIsland.reset = function () {
+                    delivered = false;
+                    this.setImage("IslandChan.png");
+                    this.setDY(OCEAN_SPEED);
+                    this.setDX(0);
+                    x = Math.random() * scene.width;
+                    this.setPosition(x, 0);
+                } // end reset
+
+                tIsland.checkBounds = function () {
+                    if (this.y > scene.height) {
+                        this.reset();
+                    } // end if
+                } // end checkBounds
+
+                tIsland.reset();
+
+                return tIsland;
+            } // end island
+           
+           /* Cloud function:
+            * Establishes cloud sprites that are randomly generated on the screen */
+            function Cloud() {
+                tCloud = new Sprite(scene, "CloudChan.png", 150, 100);
+
+                tCloud.reset = function () {
+                    this.setDY((Math.random() * OCEAN_SPEED) + 5);
+                    this.setDX((Math.random() * 10) - 5);
+                    newX = Math.random() * scene.width;
+                    this.setPosition(newX, 0);
+                } // end reset
+
+                tCloud.checkBounds = function () {
+                    if (this.y > scene.height) {
+                        this.reset();
+                    } // end if
+                } // end checkBounds
+
+                tCloud.reset();
+
+                return tCloud;
+            } // end cloud 
+            
+            //continuously creates three clouds on the game screen
+            function makeClouds() {
+                clouds = new Array(NUM_CLOUDS);
+                for (i = 0; i < NUM_CLOUDS; i++) {
+                    clouds[i] = new Cloud();
+                } // end for
+            } // end makeClouds
+
+            //Makes sure there are only 3 clouds on the screen at a time
+            function updateClouds() {
+                for (i = 0; i < NUM_CLOUDS; i++) {
+                    clouds[i].update();
+                } // end for
+            } // end updateClouds
+
+            /* Ocean funtion:
+             * Establishes the ocean sprite that serves as a background
+             * It's speed is set */
+            function Ocean() {
+                tOcean = new Sprite(scene, "OceanChan.png", 800, 1440);
+                tOcean.setDX(0);
+                tOcean.setDY(OCEAN_SPEED);
+                tOcean.setPosition(400, 0);
+
+                tOcean.checkBounds = function () {
+                    //seamless ocean gif repeats
+                    if (this.y > 720) {
+                        this.setPosition(400, -120);
+                    } // end if
+                } // end checkBounds
+
+                return tOcean;
+            } // end ocean
+            
+            /*
+             * Establishes the sounds for the game that occur upon collision with an object
+             * as well as the background music
+             */
+            buildSounds = function () {
+                PageMp3 = new Sound("Page.mp3");
+
+                LatchMp3 = new Sound("Latch.mp3");
+
+                AirplaneOgg = new Sound("Airplane.ogg");
+                
+                bgMusic = new Sound("guitarmoozik.ogg");
+
+            } // end buildSounds
+
+            //checks the player's score and orders it into the high scores
+            function checkScore() {
+                scores.splice(0, 0, score);
+                scores.sort(function(a, b){return b-a});
+                scoreChecked = true;
+            }
+
+            //checks if the plane has collided with either an island or a cloud
+            function checkCollisions() {
+                //plane on island adds to the player's score
+                if (plane.collidesWith(island)) {
+                    PageMp3.play();
+                    
+                    if(!delivered)
+                        score += 10;
+                    delivered = true;
+                   
+                    island.setImage("IslandChanWITHLetter.png");
+//                    island.reset();
+                    document.getElementById("score").innerHTML = "Score: " + score;
+                } // end if
+
+                //plane on cloud subtracts a life from the player's health bar
+                for (i = 0; i < NUM_CLOUDS; i++) {
+                    if (plane.collidesWith(clouds[i])) {
+                        LatchMp3.play();
+                        clouds[i].reset();
+                        decr();
+                        health -= 1;
+                    } // end if
+                } // end for
+            } // end checkCollisions
+
+            //starts the game loop and creates all the sprites, sounds, etc.
+            function init() {
+                scene = new Scene();
+                scene.hideCursor();
+                document.getElementById("replay").style.display = "none";
+                buildSounds();
+                bgMusic.play();
+                plane = new Plane();
+                island = new Island();
+                makeClouds();
+                ocean = new Ocean();
+                
+                scene.start();
+            }  // end init
+
+            //updates everything for each instance
+            function update() {
+                //updates all of the below when the player's health is above 0
+                if (health > 0) {
+                    document.getElementById("health").style.display = "block";
+                    document.getElementById("score").style.display = "block";
+                    document.getElementById("replay").style.display = "none";
+                    document.getElementById("endscreen").style.display = "none";
+                    scene.hideCursor();
+                    AirplaneOgg.play();
+                    bgMusic.play();
+                    scene.clear();
+                    plane.followMouse();
+                    checkCollisions();
+                    ocean.update();
+                    island.update();
+                    plane.update();
+                    updateClouds();
+                }
+                else if (health <= 0) {  //if the player's health is less than 0, then the updates stop and the game ends
+                    if(!scoreChecked)
+                        checkScore(); 
+                    //line below displays the highscores
+                    document.getElementById("end").innerHTML = "Game Over!<br>High Scores: <br>1) " + scores[0] + "<br>2) " + scores[1] + "<br>3) " + scores[2];
+                    document.getElementById("replay").style.display = "block";
+                    document.getElementById("health").style.display = "none";
+                    document.getElementById("score").style.display = "none";
+                    document.getElementById("endscreen").style.display = "block";
+                    scene.showCursor();
+                }
+
+            } // end update();
+
+            //Increases the health bar by 5, used in restarting the game
+            function incr() {
+                var v1 = document.getElementById('p1').value;
+                document.getElementById("p1").value = v1 + 5;
+            }
+
+            //Decreases the health bar by one, used when the plane hits a cloud
+            function decr() {
+                var v1 = document.getElementById('p1').value;
+                document.getElementById("p1").value = v1 - 1;
+            }
+            
+            //brings the score back to 0 and the health back to full
+            //also gets rid of the highscore box so the player can see what they're doing
+            function restart() {
+                document.getElementById("end").innerHTML = "";
+                score = 0;
+                document.getElementById("score").innerHTML = "Score: " + score;
+                health = 5;
+                incr();
+                plane.setPosition(400, 500);
+                scoreChecked = false;
+            }
+
+        </script>
+
+        <style type="text/css">
+            /*styling for the score*/
+            #score {
+                position:absolute;
+                font-family:monospace;
+                font-size: 20px;
+                left: 80px;
+                top: 100px;
+                z-index: 999;
+                color: black;
+            }
+
+            /*placement for the health bar*/
+            #health {
+                position: absolute;
+                left: 50px;
+                top: 80px;
+                z-index: 800;
+            }
+            
+            /*styling for the health bar*/
+            #p1 {
+                background-color: green;
+            }
+            
+            /*styling for the high score screen at the end of the game*/
+            #end {
+                position:absolute;
+                left: 300px;
+                top: 200px;
+                z-index: 1001;
+                color: black;
+                font-family: serif;
+                font-size:40px;
+                text-align: center;
+                color: darkolivegreen;
+            }
+            
+            /*styling for the high score screen at the end of the game*/
+            #endscreen {
+                position: absolute;
+                color: white;
+                background-color:blanchedalmond;
+                width: 300px;
+                height: 300px;
+                z-index: 1000;
+                left: 250px;
+                top: 185px;
+                border:10px solid #FCD3BD;
+                border-radius: 10px;
+            }
+            
+            /*styling for the replay button div*/
+            #replay {
+                position:absolute;
+                left: 375px;
+                top: 450px;
+                z-index:1001;
+                font-size: 30px;
+            }
+            
+            /*changes the cursor to signify that this is a clickable button*/
+            #replay:hover{
+                cursor:pointer;
+            }
+            
+            /*styling for the restart button*/ 
+            button#restartButton{
+                background-color: #FCD3BD;
+                border: transparent;
+                width: 80px;
+                height: 30px;
+                font-family: serif;
+                font-size: 13px;
+                color: darkolivegreen;
+            }
+            
+            /*changes the cursor to signify that this is a clickable button*/
+            button#restartButton:hover{
+                cursor:pointer;
+            }
+            
+            /*styling for the splash screen div*/
+            #splashScreenholder{
+                position:absolute;
+                z-index:1001;
+                margin-top:63px;
+                margin-left:10px;
+            }
+            
+            /*styling for the splash screen text image*/
+            img#splashText{
+                position:absolute;
+                z-index:1002;
+            }
+            
+            /*styling for splash screen author text image*/
+             img#authorText{
+                position:absolute;
+                z-index:1003;
+                margin-top:450px;
+                margin-left:20px;
+            }
+            
+            /*styling for the play button image*/
+            img#playButton{
+              position:absolute;
+              z-index:1004; 
+              margin-top:270px;
+              opacity:0.9;
+            }
+            
+            /*changes the cursor to signify that this is a clickable button*/
+            img#playButton:hover{
+                cursor:pointer;
+            }
+            
+            /*styling for the start button*/
+            #playText{
+                font-family: 'Pacifico', cursive;
+                color:#004F1D;
+                position:absolute;
+                margin-top:320px;
+                margin-left: 65px;
+                font-size:300%;
+                z-index:1005;
+            }
+            
+            /*changes the cursor to signify that this is a clickable button*/ 
+            #playText:hover{
+                cursor:pointer;
+            }
+        </style>       
+    </head>
+    <body>
+        <script>
+            function startGame(){
+                document.getElementById("splashScreenholder").style.display="none";
+                init();
+            }
+        </script>
+        <div id = "score"> Score: 0</div>
+        <div id = "health"><progress value="5" max="5" id=p1 >100%</progress></div>
+        <div id = "end"></div>
+        <div id = "replay"><button id="restartButton" type ="button" onclick="restart()">Play Again?</button></div>
+        <div id = "endscreen"></div>
+        <div id="splashScreenholder">
+            <div id="playText" onclick="startGame()">Play</div>
+            <img id="playButton" onclick="startGame()" alt="Cloud Image for Start Button" src="CloudChan.png">
+            <img id="splashText" alt="Text for splash Screen" src="textSplash.png">
+            <img id="authorText" alt="Author Text for splash Screen" src="splashAuthor.png">
+            <img id="splashBack" alt="Splash Screen for Game" src="splashScreen.png">
+        </div>
+        <br><br><br>
+    </body>
+</html>
